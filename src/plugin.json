@@ -1,0 +1,16 @@
+{
+  "type": "panel",
+  "name": "Hotchart",
+  "id": "local-hotchart-panel",
+  "info": {
+    "description": "A continuous HSL color chart with one row per metric.",
+    "author": { "name": "Local" },
+    "keywords": ["heatmap", "time series", "HSL"],
+    "logos": { "small": "img/logo.svg", "large": "img/logo.svg" },
+    "links": [],
+    "screenshots": [],
+    "version": "0.1.1",
+    "updated": "2026-10-30"
+  },
+  "dependencies": { "grafanaDependency": ">=8.4.5", "plugins": [] }
+}
