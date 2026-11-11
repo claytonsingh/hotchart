@@ -12,7 +12,14 @@ The plugin is built against Grafana 8.4.5. For local development, copy `dist/` i
 
 ## Query data
 
-Use a query that returns a time field and one or more numeric fields. Each numeric field becomes a row. A table with one time field, one string metric field (such as IP), and one numeric value field is also supported; each distinct string becomes a row. For values between samples, the panel interpolates linearly. No time bucketing or aggregation is applied. Duplicate timestamps use the last sample in the query result.
+Use a query that returns a time field and one or more numeric fields. Each numeric field becomes a row. A table with one time field, one string metric field (such as IP),
+and one numeric value field is also supported; each distinct string becomes a row. Values between normally spaced samples are interpolated linearly. Gaps longer than 2.5
+times the expected sample interval fade to transparent at both edges. The panel uses Grafana's field interval when available and otherwise infers the usual spacing from each
+row. No time bucketing or aggregation is applied. Duplicate timestamps use the last sample in the query result.
+The first and last samples also fade to transparency over one expected interval when the plotted time range extends beyond the available data.
+All transparency fades use smoothstep easing while retaining the same fade duration.
+
+The tooltip reports the nearest actual sample value and its timestamp. Transparent gaps show "No data".
 
 Grafana's Thresholds editor controls the default gradient. Add a Base color and any number of threshold colors, then choose Absolute or Percentage mode. Hotchart interpolates in HSL between those stops. For the packet loss example, use a green Base, `0.0001` tan, and `0.1` red; with Grafana's `percentunit`, those values display as 0%, 0.01%, and 10%. The gradient uses one shared set of stops from the first metric field. Choose Manual HSL in the panel options to use low and high HSL colors instead.
 

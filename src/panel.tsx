@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { PanelProps } from '@grafana/data';
 import { useTheme2 } from '@grafana/ui';
-import { bounds, colorAt, extractRows, readingAt, resolveStops } from './model';
+import { bounds, colorAt, extractRows, nearestSample, readingAt, resolveStops } from './model';
 import { selectedTimeRange } from './interaction';
 import { defaults, HotchartOptions } from './types';
 
@@ -78,10 +78,10 @@ export const HotchartPanel: React.FC<PanelProps<HotchartOptions>> = ({ data, wid
     for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
       const y = rowIndex * rowHeight + (rowHeight >= 12 ? 1 : 0);
       const bandHeight = Math.max(1, rowHeight - (rowHeight >= 12 ? 2 : 1));
-      const samples = rows[rowIndex].samples;
+      const { samples, intervalMs } = rows[rowIndex];
       for (let x = 0; x < plotWidth; x++) {
         const time = start + ((x + 0.5) / plotWidth) * (end - start);
-        const reading = readingAt(samples, time);
+        const reading = readingAt(samples, time, intervalMs);
         if (reading.colorValue === null || reading.alpha <= 0) {
           continue;
         }
@@ -128,7 +128,8 @@ export const HotchartPanel: React.FC<PanelProps<HotchartOptions>> = ({ data, wid
       return;
     }
     const time = start + (x / plotWidth) * (end - start);
-    setHover({ x, y, row, time, value: readingAt(rows[row].samples, time).value });
+    const sample = nearestSample(rows[row].samples, time, rows[row].intervalMs);
+    setHover({ x, y, row, time: sample?.time ?? time, value: sample?.value ?? null });
   };
   const onPointerUp = (event: React.PointerEvent<HTMLCanvasElement>) => {
     const active = selectionRef.current;

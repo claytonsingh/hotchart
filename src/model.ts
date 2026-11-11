@@ -9,6 +9,7 @@ export interface Sample {
 export interface MetricRow {
   name: string;
   samples: Sample[];
+  intervalMs?: number;
   unit?: string;
   thresholds?: ColorStop[];
   thresholdMode?: 'absolute' | 'percentage';
@@ -72,6 +73,23 @@ function fieldSettings(field: Field): Pick<MetricRow, 'unit' | 'thresholds' | 't
   };
 }
 
+function sampleInterval(samples: Sample[], timeField: Field, valueField: Field): number | undefined {
+  const configured = [timeField.config?.interval, valueField.config?.interval]
+    .find((interval): interval is number => interval !== null && interval !== undefined && Number.isFinite(interval) && interval > 0);
+  if (configured !== undefined) {
+    return configured;
+  }
+  const spacings = samples.slice(1)
+    .map((sample, index) => sample.time - samples[index].time)
+    .filter((spacing) => spacing > 0)
+    .sort((left, right) => left - right);
+  if (!spacings.length) {
+    return undefined;
+  }
+  const middle = Math.floor(spacings.length / 2);
+  return spacings.length % 2 ? spacings[middle] : (spacings[middle - 1] + spacings[middle]) / 2;
+}
+
 export function extractRows(frames: DataFrame[]): MetricRow[] {
   const rows: MetricRow[] = [];
   for (const frame of frames) {
@@ -98,7 +116,8 @@ export function extractRows(frames: DataFrame[]): MetricRow[] {
         grouped.set(name, samples);
       }
       for (const [name, samples] of grouped) {
-        rows.push({ name, samples: sortedUnique(samples), ...fieldSettings(valueField) });
+        const sorted = sortedUnique(samples);
+        rows.push({ name, samples: sorted, intervalMs: sampleInterval(sorted, time, valueField), ...fieldSettings(valueField) });
       }
       continue;
     }
@@ -111,7 +130,8 @@ export function extractRows(frames: DataFrame[]): MetricRow[] {
           samples.push({ time: at, value: numeric(fieldValue(field, i)) });
         }
       }
-      rows.push({ name: displayName(field, frame, numericFields.length), samples: sortedUnique(samples), ...fieldSettings(field) });
+      const sorted = sortedUnique(samples);
+      rows.push({ name: displayName(field, frame, numericFields.length), samples: sorted, intervalMs: sampleInterval(sorted, time, field), ...fieldSettings(field) });
     }
   }
   return rows;
@@ -146,9 +166,27 @@ export function bounds(rows: MetricRow[], options: HotchartOptions): [number, nu
   return min <= max ? [min, max] : [max, min];
 }
 
-export function readingAt(samples: Sample[], time: number): Reading {
-  if (!samples.length || time < samples[0].time || time > samples[samples.length - 1].time) {
+function smoothstep(progress: number): number {
+  const clamped = Math.max(0, Math.min(1, progress));
+  return clamped * clamped * (3 - 2 * clamped);
+}
+
+function fadeFromSample(sample: Sample, distance: number, width?: number): Reading {
+  if (sample.value === null || width === undefined || width <= 0 || distance >= width) {
     return { value: null, colorValue: null, alpha: 0 };
+  }
+  return { value: distance === 0 ? sample.value : null, colorValue: sample.value, alpha: smoothstep(1 - distance / width) };
+}
+
+export function readingAt(samples: Sample[], time: number, intervalMs?: number): Reading {
+  if (!samples.length) {
+    return { value: null, colorValue: null, alpha: 0 };
+  }
+  if (time < samples[0].time) {
+    return fadeFromSample(samples[0], samples[0].time - time, intervalMs);
+  }
+  if (time > samples[samples.length - 1].time) {
+    return fadeFromSample(samples[samples.length - 1], time - samples[samples.length - 1].time, intervalMs);
   }
   let left = 0;
   let right = samples.length - 1;
@@ -165,18 +203,62 @@ export function readingAt(samples: Sample[], time: number): Reading {
   if (first.time === second.time) {
     return { value: first.value, colorValue: first.value, alpha: first.value === null ? 0 : 1 };
   }
+  const gap = second.time - first.time;
+  if (intervalMs !== undefined && intervalMs > 0 && gap > intervalMs * 2.5) {
+    const fadeWidth = Math.min(intervalMs, gap / 2);
+    const fromFirst = time - first.time;
+    const fromSecond = second.time - time;
+    if (first.value !== null && fromFirst < fadeWidth) {
+      return fadeFromSample(first, fromFirst, fadeWidth);
+    }
+    if (second.value !== null && fromSecond < fadeWidth) {
+      return fadeFromSample(second, fromSecond, fadeWidth);
+    }
+    return { value: null, colorValue: null, alpha: 0 };
+  }
   const fraction = (time - first.time) / (second.time - first.time);
   if (first.value !== null && second.value !== null) {
     const value = first.value + (second.value - first.value) * fraction;
     return { value, colorValue: value, alpha: 1 };
   }
   if (first.value !== null) {
-    return { value: null, colorValue: first.value, alpha: 1 - fraction };
+    return { value: null, colorValue: first.value, alpha: smoothstep(1 - fraction) };
   }
   if (second.value !== null) {
-    return { value: null, colorValue: second.value, alpha: fraction };
+    return { value: null, colorValue: second.value, alpha: smoothstep(fraction) };
   }
   return { value: null, colorValue: null, alpha: 0 };
+}
+
+export function nearestSample(samples: Sample[], time: number, intervalMs?: number): Sample | null {
+  if (readingAt(samples, time, intervalMs).alpha <= 0) {
+    return null;
+  }
+  let left = 0;
+  let right = samples.length;
+  while (left < right) {
+    const middle = Math.floor((left + right) / 2);
+    if (samples[middle].time < time) {
+      left = middle + 1;
+    } else {
+      right = middle;
+    }
+  }
+  let before = left - 1;
+  let after = left;
+  while (before >= 0 && samples[before].value === null) {
+    before--;
+  }
+  while (after < samples.length && samples[after].value === null) {
+    after++;
+  }
+  if (before < 0) {
+    return samples[after] ?? null;
+  }
+  if (after >= samples.length || time - samples[before].time <= samples[after].time - time) {
+    return samples[before];
+  }
+  return samples[after];
 }
 
 function clamp(value: number, low: number, high: number): number {
