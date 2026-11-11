@@ -9,3 +9,10 @@ export function selectedTimeRange(left: number, right: number, width: number, st
   }
   return { from: Math.round(start + (first / width) * (end - start)), to: Math.round(start + (last / width) * (end - start)) };
 }
+
+export function tooltipLeft(mouseX: number, plotWidth: number, tooltipWidth: number, offset = 12): number {
+  if (mouseX + offset + tooltipWidth <= plotWidth) {
+    return mouseX + offset;
+  }
+  return Math.max(0, mouseX - offset - tooltipWidth);
+}

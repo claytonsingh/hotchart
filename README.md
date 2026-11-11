@@ -20,6 +20,7 @@ The first and last samples also fade to transparency over one expected interval 
 All transparency fades use smoothstep easing while retaining the same fade duration.
 
 The tooltip reports the nearest actual sample value and its timestamp. Transparent gaps show "No data".
+The tooltip moves to the left of the pointer near the plot's right edge.
 
 Grafana's Thresholds editor controls the default gradient. Add a Base color and any number of threshold colors, then choose Absolute or Percentage mode. Hotchart interpolates in HSL between those stops. For the packet loss example, use a green Base, `0.0001` tan, and `0.1` red; with Grafana's `percentunit`, those values display as 0%, 0.01%, and 10%. The gradient uses one shared set of stops from the first metric field. Choose Manual HSL in the panel options to use low and high HSL colors instead.
 

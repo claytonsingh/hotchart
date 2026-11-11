@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { PanelProps } from '@grafana/data';
 import { useTheme2 } from '@grafana/ui';
 import { bounds, colorAt, extractRows, nearestSample, readingAt, resolveStops } from './model';
-import { selectedTimeRange } from './interaction';
+import { selectedTimeRange, tooltipLeft } from './interaction';
 import { defaults, HotchartOptions } from './types';
 
 interface Hover {
@@ -53,6 +53,7 @@ export const HotchartPanel: React.FC<PanelProps<HotchartOptions>> = ({ data, wid
   const rowHeight = Math.max(8, settings.rowHeight);
   const labelWidth = Math.min(Math.max(60, settings.labelWidth), Math.max(60, width - 80));
   const plotWidth = Math.max(1, width - labelWidth - 18);
+  const tooltipWidth = Math.min(180, plotWidth);
   const plotHeight = rows.length * rowHeight;
   const legend = useMemo(() => {
     const anchors = [min, ...stops.map((stop) => stop.value).filter((value) => value > min && value < max), max];
@@ -171,7 +172,22 @@ export const HotchartPanel: React.FC<PanelProps<HotchartOptions>> = ({ data, wid
             <div style={{ position: 'absolute', left: Math.min(selection.startX, selection.endX), top: 0, width: Math.abs(selection.endX - selection.startX), height: plotHeight, pointerEvents: 'none', background: theme.colors.primary.transparent, borderLeft: `1px solid ${theme.colors.primary.main}`, borderRight: `1px solid ${theme.colors.primary.main}` }} />
           )}
           {hover && (
-            <div style={{ position: 'absolute', left: Math.min(hover.x + 12, Math.max(0, plotWidth - 165)), top: Math.max(0, hover.y - 58), pointerEvents: 'none', zIndex: 2, minWidth: 140, padding: '7px 9px', borderRadius: 4, background: theme.colors.background.secondary, border: `1px solid ${theme.colors.border.weak}`, boxShadow: '0 3px 12px rgba(0, 0, 0, 0.3)', fontSize: 12 }}>
+            <div style={{
+              position: 'absolute',
+              left: tooltipLeft(hover.x, plotWidth, tooltipWidth),
+              top: Math.max(0, hover.y - 58),
+              pointerEvents: 'none',
+              zIndex: 2,
+              width: tooltipWidth,
+              boxSizing: 'border-box',
+              overflowWrap: 'anywhere',
+              padding: '7px 9px',
+              borderRadius: 4,
+              background: theme.colors.background.secondary,
+              border: `1px solid ${theme.colors.border.weak}`,
+              boxShadow: '0 3px 12px rgba(0, 0, 0, 0.3)',
+              fontSize: 12,
+            }}>
               <strong>{rows[hover.row].name}</strong><br />
               {formatTime(hover.time)}<br />
               {hover.value === null ? 'No data' : formatValue(hover.value, rows[hover.row].unit)}

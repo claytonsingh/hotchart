@@ -9,7 +9,7 @@
     "logos": { "small": "img/logo.svg", "large": "img/logo.svg" },
     "links": [],
     "screenshots": [],
-    "version": "0.1.5",
+    "version": "0.1.6",
     "updated": "2026-11-10"
   },
   "dependencies": { "grafanaDependency": ">=8.4.5", "plugins": [] }
